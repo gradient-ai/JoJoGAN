@@ -107,7 +107,7 @@ def get_landmark(filepath, predictor):
     """
     detector = dlib.get_frontal_face_detector()
 
-    img = dlib.load_rgb_image(filepath)
+    img =  cv2.imread(filepath)
     dets = detector(img, 1)
     assert len(dets) > 0, "Face not detected, try another face image"
 
