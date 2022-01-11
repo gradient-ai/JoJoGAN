@@ -1,5 +1,7 @@
 # JoJoGAN: One Shot Face Stylization
 
+This fork was updated on Jan 11, 2022 and will receive irregular updates. For regular updates, keep up with the original repo.
+
 [![Gradient](https://assets.paperspace.io/img/gradient-badge.svg)](https://console.paperspace.com/te72i7f1w/notebook/rg9zctvu4oucyjo?file=stylize.ipynb)
 
 [![arXiv](https://img.shields.io/badge/arXiv-2112.11641-b31b1b.svg)](https://arxiv.org/abs/2112.11641)
