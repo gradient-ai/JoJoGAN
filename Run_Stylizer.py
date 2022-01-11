@@ -14,7 +14,6 @@ from torch import nn, autograd, optim
 from torch.nn import functional as F
 from tqdm import tqdm
 import lpips
-import wandb
 from model import *
 from e4e_projection import projection as e4e_projection
 from copy import deepcopy
