@@ -6,7 +6,9 @@ from PIL import Image
 import math
 import random
 import os
+import cv2 
 
+import PIL  
 import numpy as np
 from torch import nn, autograd, optim
 from torch.nn import functional as F
@@ -60,15 +62,17 @@ aligned_face = align_face(filepath)
 my_w = e4e_projection(aligned_face, name, device).unsqueeze(0)
 
 #@markdown Upload your own style images into the style_images folder and type it into the field in the following format without the directory name. Upload multiple style images to do multi-shot image translation
-from os import listdir
-from os.path import isfile, join
-names = [f for f in listdir('style_images/AF_dataset/Vincent_van_Gogh/') if isfile(join('style_images/AF_dataset/Vincent_van_Gogh/', f))]
+
+# names = ['151.png', '152.png', '153.png', '154.png', '155.png', '156.png', '157.png'] 
+names = ['arcane_caitlyn.jpeg', 'arcane_jinx.jpeg', 'arcane_jayce.jpeg', 'arcane_viktor.jpeg'] #@param {type:"raw"}
+
+# , '158.png','159.png' ] #@param {type:"raw"}
 
 targets = []
 latents = []
 
 for name in names:
-    style_path = os.path.join('style_images/AF_dataset/Vincent_van_Gogh/', name)
+    style_path = os.path.join('style_images/', name)
     assert os.path.exists(style_path), f"{style_path} does not exist!"
 
     name = strip_path_extension(name)
@@ -95,41 +99,15 @@ targets = torch.stack(targets, 0)
 latents = torch.stack(latents, 0)
 
 target_im = utils.make_grid(targets, normalize=True, range=(-1, 1))
-plt.rcParams['figure.dpi'] = 150
-pretrained = 'disney' #@param ['art', 'arcane_multi', 'supergirl', 'arcane_jinx', 'arcane_caitlyn', 'jojo_yasuho', 'jojo', 'disney']
-#@markdown Preserve color tries to preserve color of original image by limiting family of allowable transformations. Otherwise, the stylized image will inherit the colors of the reference images, leading to heavier stylizations.
-preserve_color = False #@param{type:"boolean"}
+#@title Finetune StyleGAN
+#@markdown alpha controls the strength of the style
+alpha =  1.0 #@param {type:"slider", min:0, max:1, step:0.1}
+alpha = 1-alpha
 
-ckpt = torch.load('disney.pt')
-generator.load_state_dict(ckpt["g"], strict=False)
-
-#@title Generate results
-n_sample =  5#@param {type:"number"}
-seed = 3000 #@param {type:"number"}
-
-torch.manual_seed(seed)
-with torch.no_grad():
-    generator.eval()
-    z = torch.randn(n_sample, latent_dim, device=device)
-
-    original_sample = original_generator([z], truncation=0.7, truncation_latent=mean_latent)
-    sample = generator([z], truncation=0.7, truncation_latent=mean_latent)
-
-    original_my_sample = original_generator(my_w, input_is_latent=True)
-    my_sample = generator(my_w, input_is_latent=True)
-
-# display reference images
-if pretrained == 'arcane_multi':
-    style_path = f'style_images_aligned/arcane_jinx.png'
-else:   
-    style_path = f'style_images_aligned/{pretrained}.png'
-style_image = transform(Image.open(style_path)).unsqueeze(0).to(device)
-face = transform(aligned_face).unsqueeze(0).to(device)
-
-my_output = torch.cat([style_image, face, my_sample], 0)
-
-output = torch.cat([original_sample, sample], 0)
-
+#@markdown Tries to preserve color of original image by limiting family of allowable transformations. Set to false if you want to transfer color from reference image. This also leads to heavier stylization
+preserve_color = True #@param{type:"boolean"}
+#@markdown Number of finetuning steps. Different style reference may require different iterations. Try 200~500 iterations.
+num_iter = 200 #@param {type:"number"}
 
 
 lpips_fn = lpips.LPIPS(net='vgg').to(device)
@@ -141,7 +119,6 @@ generator = deepcopy(original_generator)
 g_optim = optim.Adam(generator.parameters(), lr=2e-3, betas=(0, 0.99))
 
 # Which layers to swap for generating a family of plausible real images -> fake image
-# def run():
 if preserve_color:
     id_swap = [7,9,11,15,16,17]
 else:
@@ -158,12 +135,43 @@ for idx in tqdm(range(num_iter)):
 
     img = generator(in_latent, input_is_latent=True)
     loss = lpips_fn(F.interpolate(img, size=(256,256), mode='area'), F.interpolate(targets, size=(256,256), mode='area')).mean()
-    
 
     g_optim.zero_grad()
     loss.backward()
     g_optim.step()
 
-# if __name__ == "__main__":
-#     run()
-   
+n_sample =  5#@param {type:"number"}
+seed = 3000 #@param {type:"number"}
+
+torch.manual_seed(seed)
+with torch.no_grad():
+    generator.eval()
+    z = torch.randn(n_sample, latent_dim, device=device)
+
+    original_sample = original_generator([z], truncation=0.7, truncation_latent=mean_latent)
+    sample = generator([z], truncation=0.7, truncation_latent=mean_latent)
+
+    original_my_sample = original_generator(my_w, input_is_latent=True)
+    my_sample = generator(my_w, input_is_latent=True)
+
+names = ['arcane_caitlyn.png', 'arcane_jinx.png', 'arcane_jayce.png', 'arcane_viktor.png'] #@param {type:"raw"}
+# names = ['151.png', '152.png', '153.png', '154.png', '155.png', '156.png', '157.png'] 
+
+# display reference images
+style_images = []
+for name in names:
+    style_path = f'style_images_aligned/{name}'
+    style_image = transform(Image.open(style_path))
+    style_images.append(style_image)
+    
+
+
+face = transform(aligned_face).to(device).unsqueeze(0)
+style_images = torch.stack(style_images, 0).to(device)
+save_image(utils.make_grid(style_images, normalize=True, range=(-1, 1)), title='References')
+
+my_output = torch.cat([face, my_sample], 0)
+save_image(utils.make_grid(my_output, normalize=True, range=(-1, 1)), title='My sample')
+
+output = torch.cat([original_sample, sample], 0)
+save_image(utils.make_grid(output, normalize=True, range=(-1, 1), nrow=n_sample), title='Random samples')   
