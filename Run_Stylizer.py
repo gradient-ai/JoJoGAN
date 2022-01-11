@@ -15,8 +15,8 @@ from torch.nn import functional as F
 from tqdm import tqdm
 import lpips
 import wandb
-from JoJoGAN.model import *
-from JoJoGAN.e4e_projection import projection as e4e_projection
+from model import *
+from e4e_projection import projection as e4e_projection
 from copy import deepcopy
 device = 'cuda' #@param ['cuda', 'cpu']
 
